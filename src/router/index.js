@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from "vue-router";
 import ChatView from "../views/ChatView.vue";
+import PromptSystemView from "../views/PromptSystemView.vue"; // Import the new view
 
 const routes = [
   {
@@ -7,12 +8,11 @@ const routes = [
     name: "Chat",
     component: ChatView,
   },
-  // {
-  //   path: '/config',
-  //   name: 'Config',
-  //   // This is a placeholder for your future prompt configuration page
-  //   component: () => import('../views/PromptConfigView.vue')
-  // }
+  {
+    path: "/prompts",
+    name: "PromptSystem",
+    component: PromptSystemView,
+  },
 ];
 
 const router = createRouter({
