@@ -64,40 +64,69 @@ export async function getAccessToken() {
   return { accessToken, conversationId };
 }
 
+/**
+ * Fetches a chat response as a stream.
+ * @param {Array} messages - The array of messages for the conversation.
+ * @param {Function} onMessageParsed - Callback function to handle incoming chunks.
+ */
 export async function getChatStream(messages, onMessageParsed) {
   await getAccessToken();
 
   const openai = new OpenAI({
-    apiKey: accessToken, // Use the module-level accessToken here.
+    apiKey: accessToken,
     baseURL: BASE_URL,
-    dangerouslyAllowBrowser: true, // This should be true only for client-side browser environments.
+    dangerouslyAllowBrowser: true,
   });
 
   try {
-    console.log("[API] getChatStream called with messages:", messages);
-
     const stream = await openai.chat.completions.create({
-      model: "gpt-4", // It's best to specify a model, e.g., "gpt-4" or "gpt-3.5-turbo".
+      model: "gpt-4",
       messages: messages,
       stream: true,
       conversation_id: conversationId,
     });
 
     for await (const chunk of stream) {
-      console.log("[API] Received chunk:", chunk);
       onMessageParsed({
         done: false,
         data: chunk,
       });
     }
 
-    // Signal that streaming is complete.
     onMessageParsed({
       done: true,
       data: null,
     });
   } catch (error) {
     console.error("[API] Error in getChatStream:", error);
+    throw error;
+  }
+}
+
+/**
+ * Fetches a complete chat response without streaming.
+ * @param {Array} messages - The array of messages for the conversation.
+ * @returns {Promise<Object>} The complete chat completion response.
+ */
+export async function getChatCompletion(messages) {
+  await getAccessToken();
+
+  const openai = new OpenAI({
+    apiKey: accessToken,
+    baseURL: BASE_URL,
+    dangerouslyAllowBrowser: true,
+  });
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4",
+      messages: messages,
+      stream: false, // Set to false for a single response
+      conversation_id: conversationId,
+    });
+    return completion;
+  } catch (error) {
+    console.error("[API] Error in getChatCompletion:", error);
     throw error;
   }
 }

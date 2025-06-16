@@ -1,9 +1,21 @@
 <template>
   <div class="chat-wrapper">
     <div class="header">
-      <button @click="resetConversation" class="new-convo-button">
-        + New Conversation
-      </button>
+      <div class="header-content">
+        <h1 class="header-title">Ask AI</h1>
+        <div class="header-controls">
+          <button @click="resetConversation" class="new-convo-button">
+            + New Conversation
+          </button>
+          <div class="stream-switch">
+            <label class="switch">
+              <input type="checkbox" v-model="isStreamingEnabled" />
+              <span class="slider round"></span>
+            </label>
+            <span class="stream-label">Stream</span>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="messages-container" ref="messagesContainer">
       <div
@@ -55,7 +67,7 @@
 </template>
 
 <script>
-import { getChatStream, resetToken } from "../services/api";
+import { getChatStream, getChatCompletion, resetToken } from "../services/api";
 import { marked } from "marked";
 
 export default {
@@ -64,6 +76,7 @@ export default {
       messages: [],
       newMessage: "",
       isSending: false,
+      isStreamingEnabled: true, // State for the streaming toggle
     };
   },
   methods: {
@@ -94,24 +107,34 @@ export default {
         .map(({ role, content }) => ({ role, content }));
 
       try {
-        await getChatStream(apiMessages, ({ done, data }) => {
-          if (done) {
-            this.isSending = false;
-            return;
-          }
+        if (this.isStreamingEnabled) {
+          // Streaming logic
+          await getChatStream(apiMessages, ({ done, data }) => {
+            if (done) {
+              this.isSending = false;
+              return;
+            }
 
-          const delta = data?.choices?.[0]?.delta?.content;
-          if (delta) {
-            let lastMessage = this.messages[this.messages.length - 1];
-            lastMessage.content += delta;
-            this.scrollToBottom();
-          }
-        });
+            const delta = data?.choices?.[0]?.delta?.content;
+            if (delta) {
+              let lastMessage = this.messages[this.messages.length - 1];
+              lastMessage.content += delta;
+              this.scrollToBottom();
+            }
+          });
+        } else {
+          // Non-streaming logic
+          const response = await getChatCompletion(apiMessages);
+          const messageContent = response.choices[0].message.content;
+          let lastMessage = this.messages[this.messages.length - 1];
+          lastMessage.content = messageContent;
+          this.scrollToBottom();
+          this.isSending = false;
+        }
       } catch (error) {
         let lastMessage = this.messages[this.messages.length - 1];
         lastMessage.content += "\n\n*(Sorry, a critical error occurred.)*";
-      } finally {
-        this.isSending = false;
+        this.isSending = false; // Ensure sending is reset on error
       }
     },
     handleEnter(event) {
@@ -141,9 +164,33 @@ export default {
 
 .header {
   position: absolute;
-  top: 10px;
-  right: 20px;
+  top: 0;
+  left: 0;
+  right: 0;
+  background-color: #202123;
+  padding: 10px 20px;
   z-index: 10;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.header-title {
+  color: white;
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 20px;
 }
 
 .new-convo-button {
@@ -159,11 +206,73 @@ export default {
   background-color: #5a5a64;
 }
 
+.stream-switch {
+  display: flex;
+  align-items: center;
+  color: white;
+}
+
+.stream-label {
+  margin-left: 10px;
+  font-size: 14px;
+}
+
+/* The switch - a checkbox with a custom UI */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: 0.4s;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.4s;
+}
+
+input:checked + .slider {
+  background-color: #19c37d;
+}
+
+input:checked + .slider:before {
+  transform: translateX(20px);
+}
+
+.slider.round {
+  border-radius: 24px;
+}
+
+.slider.round:before {
+  border-radius: 50%;
+}
+
 .messages-container {
   flex-grow: 1;
   overflow-y: auto;
-  padding: 20px 0;
-  padding-bottom: 120px;
+  padding: 100px 0 120px; /* Adjusted top padding for header */
 }
 
 .message-row {
