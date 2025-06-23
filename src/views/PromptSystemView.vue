@@ -33,8 +33,14 @@
           restore it as the main prompt.
         </p>
         <ul v-if="versions.length" class="version-list">
-          <li v-for="version in versions" :key="version" class="version-item">
-            <span class="version-date">{{ formatVersionName(version) }}</span>
+          <li
+            v-for="version in versions"
+            :key="version.id"
+            class="version-item"
+          >
+            <span class="version-date">{{
+              formatVersionName(version.created_at)
+            }}</span>
             <div class="version-actions">
               <button @click="viewVersion(version)" class="btn btn-secondary">
                 View
@@ -57,7 +63,7 @@
         @click="showVersionModal = false"
       >
         <div class="modal-content" @click.stop>
-          <h3>Version from {{ formatVersionName(selectedVersionName) }}</h3>
+          <h3>Version from {{ modalVersionName }}</h3>
           <textarea
             :value="selectedVersionContent"
             class="prompt-textarea"
@@ -92,9 +98,9 @@ export default {
     return {
       currentPrompt: "",
       editablePrompt: "",
-      versions: [],
+      versions: [], // This will hold objects: { id, created_at, ... }
       selectedVersionContent: "",
-      selectedVersionName: "",
+      selectedVersionForModal: null, // Store the whole selected version object
       isLoading: false,
       showVersionModal: false,
     };
@@ -103,32 +109,15 @@ export default {
     await this.fetchData();
   },
   methods: {
-    /**
-     * Formats the raw prompt filename into a human-readable date and time.
-     * e.g., "prompt_20250616_172421_808652" -> "June 16, 2025, 17:24:21"
-     * @param {string} version - The raw version name.
-     * @returns {string} A formatted date string.
-     */
-    formatVersionName(version) {
-      if (!version || !version.startsWith("prompt_")) {
-        return version; // Return original if format is unexpected
+    formatVersionName(isoDateString) {
+      if (!isoDateString || typeof isoDateString !== "string") {
+        return "Invalid Date";
       }
       try {
-        const parts = version.split("_");
-        const datePart = parts[1]; // "20250616"
-        const timePart = parts[2]; // "172421"
-
-        const year = parseInt(datePart.substring(0, 4), 10);
-        const month = parseInt(datePart.substring(4, 6), 10) - 1; // Month is 0-indexed in JS
-        const day = parseInt(datePart.substring(6, 8), 10);
-
-        const hour = parseInt(timePart.substring(0, 2), 10);
-        const minute = parseInt(timePart.substring(2, 4), 10);
-        const second = parseInt(timePart.substring(4, 6), 10);
-
-        const date = new Date(year, month, day, hour, minute, second);
-
-        // Format it nicely for an English locale
+        const date = new Date(isoDateString);
+        if (isNaN(date.getTime())) {
+          throw new Error("Invalid date value");
+        }
         return date.toLocaleString("en-US", {
           year: "numeric",
           month: "long",
@@ -139,8 +128,8 @@ export default {
           hour12: false,
         });
       } catch (e) {
-        console.error("Could not parse date from version:", version, e);
-        return version; // Return original on parsing error
+        console.error("Could not parse date from string:", isoDateString, e);
+        return isoDateString;
       }
     },
     async fetchData() {
@@ -152,8 +141,10 @@ export default {
         ]);
         this.currentPrompt = prompt;
         this.editablePrompt = prompt;
-        // Sort versions by date, descending (most recent first)
-        this.versions = versions.sort((a, b) => b.localeCompare(a));
+        // Sort versions by date (descending) using the 'created_at' property
+        this.versions = versions.sort((a, b) =>
+          b.created_at.localeCompare(a.created_at)
+        );
       } catch (error) {
         console.error("Error fetching initial data:", error);
         alert(error.message);
@@ -175,13 +166,14 @@ export default {
         this.isLoading = false;
       }
     },
-    async viewVersion(versionName) {
+    // Method now accepts the whole version object
+    async viewVersion(version) {
       this.isLoading = true;
       try {
         this.selectedVersionContent = await getSpecificPromptVersion(
-          versionName
+          version.id
         );
-        this.selectedVersionName = versionName;
+        this.selectedVersionForModal = version; // Store the object
         this.showVersionModal = true;
       } catch (error) {
         console.error("Error viewing version:", error);
@@ -190,19 +182,20 @@ export default {
         this.isLoading = false;
       }
     },
-    async rollbackToVersion(versionName) {
+    // Method now accepts the whole version object
+    async rollbackToVersion(version) {
       if (
         !confirm(
           `Are you sure you want to restore the version from ${this.formatVersionName(
-            versionName
-          )}? The current prompt will be saved.`
+            version.created_at // Use created_at for the confirmation message
+          )}? The current prompt will be saved as a new version.`
         )
       ) {
         return;
       }
       this.isLoading = true;
       try {
-        await rollbackPrompt(versionName);
+        await rollbackPrompt(version.id); // Use the id for the API call
         alert("Restoration completed successfully!");
         await this.fetchData();
       } catch (error) {
@@ -211,6 +204,15 @@ export default {
       } finally {
         this.isLoading = false;
       }
+    },
+  },
+  // Add a computed property for the modal title for cleaner template logic
+  computed: {
+    modalVersionName() {
+      if (this.selectedVersionForModal) {
+        return this.formatVersionName(this.selectedVersionForModal.created_at);
+      }
+      return "";
     },
   },
 };
