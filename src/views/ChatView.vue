@@ -59,11 +59,13 @@
 <script>
 import { getChatStream, getChatCompletion, resetToken } from "../services/api";
 import { marked } from "marked";
-import AppHeader from "../components/AppHeader.vue"; // Import the new header
+import DOMPurify from "dompurify";
+import hljs from "highlight.js";
+import AppHeader from "../components/AppHeader.vue";
 
 export default {
   components: {
-    AppHeader, // Register the header component
+    AppHeader,
   },
   data() {
     return {
@@ -75,7 +77,15 @@ export default {
   },
   methods: {
     renderMarkdown(content) {
-      return marked(content, { sanitize: true });
+      const rawMarkup = marked(content, {
+        highlight: (code, lang) => {
+          const language = hljs.getLanguage(lang) ? lang : "plaintext";
+          return hljs.highlight(code, { language }).value;
+        },
+        gfm: true,
+        breaks: true,
+      });
+      return DOMPurify.sanitize(rawMarkup);
     },
     scrollToBottom() {
       this.$nextTick(() => {
@@ -85,15 +95,72 @@ export default {
         }
       });
     },
+
+    /**
+     * Gets the last message from the messages array.
+     * @returns {object | null} The last message object or null.
+     */
+    _getLastMessage() {
+      if (this.messages.length === 0) return null;
+      return this.messages[this.messages.length - 1];
+    },
+
+    /**
+     * Updates the content of the last assistant message and scrolls down.
+     * @param {string} content - The content to set or append.
+     * @param {object} options - Options for updating.
+     * @param {boolean} [options.append=false] - Whether to append content or replace it.
+     */
+    _updateAssistantMessage(content, { append = false } = {}) {
+      const lastMessage = this._getLastMessage();
+      if (lastMessage && lastMessage.role === "assistant") {
+        if (append) {
+          lastMessage.content += content;
+        } else {
+          lastMessage.content = content;
+        }
+        this.scrollToBottom();
+      }
+    },
+
+    /**
+     * Handles the response from the chat stream API.
+     * @param {Array<object>} apiMessages - The messages to send to the API.
+     */
+    async _handleStreamedResponse(apiMessages) {
+      await getChatStream(apiMessages, ({ done, data }) => {
+        if (done) {
+          return;
+        }
+        const delta = data?.choices?.[0]?.delta?.content;
+        if (delta) {
+          this._updateAssistantMessage(delta, { append: true });
+        }
+      });
+    },
+
+    /**
+     * Handles the response from the chat completion API.
+     * @param {Array<object>} apiMessages - The messages to send to the API.
+     */
+    async _handleFullResponse(apiMessages) {
+      const response = await getChatCompletion(apiMessages);
+      const messageContent = response.choices[0].message.content;
+      this._updateAssistantMessage(messageContent);
+    },
+
     async sendMessage() {
-      if (!this.newMessage.trim() || this.isSending) return;
+      const trimmedMessage = this.newMessage.trim();
+      if (!trimmedMessage || this.isSending) return;
 
       this.isSending = true;
-      const userMessage = { role: "user", content: this.newMessage };
-      this.messages.push(userMessage);
+
+      // Add user message and clear input
+      this.messages.push({ role: "user", content: trimmedMessage });
       this.newMessage = "";
       this.scrollToBottom();
 
+      // Add a placeholder for the assistant's response
       this.messages.push({ role: "assistant", content: "" });
 
       const apiMessages = this.messages
@@ -102,29 +169,19 @@ export default {
 
       try {
         if (this.isStreamingEnabled) {
-          await getChatStream(apiMessages, ({ done, data }) => {
-            if (done) {
-              this.isSending = false;
-              return;
-            }
-            const delta = data?.choices?.[0]?.delta?.content;
-            if (delta) {
-              let lastMessage = this.messages[this.messages.length - 1];
-              lastMessage.content += delta;
-              this.scrollToBottom();
-            }
-          });
+          await this._handleStreamedResponse(apiMessages);
         } else {
-          const response = await getChatCompletion(apiMessages);
-          const messageContent = response.choices[0].message.content;
-          let lastMessage = this.messages[this.messages.length - 1];
-          lastMessage.content = messageContent;
-          this.scrollToBottom();
-          this.isSending = false;
+          await this._handleFullResponse(apiMessages);
         }
       } catch (error) {
-        let lastMessage = this.messages[this.messages.length - 1];
-        lastMessage.content += "\n\n*(Sorry, a critical error occurred.)*";
+        console.error("Error fetching chat response:", error);
+        this._updateAssistantMessage(
+          "\n\n*(Sorry, a critical error occurred.)*",
+          {
+            append: true,
+          }
+        );
+      } finally {
         this.isSending = false;
       }
     },
@@ -201,9 +258,16 @@ export default {
 .text-content {
   color: #ececf1;
   padding-top: 2px;
-  line-height: 1.75;
-  white-space: pre-wrap;
+  line-height: 1.5;
   word-wrap: break-word;
+}
+
+::v-deep(.text-content.markdown-body > :first-child) {
+  margin-top: 0;
+}
+
+::v-deep(.text-content.markdown-body > :last-child) {
+  margin-bottom: 0;
 }
 
 .input-area {

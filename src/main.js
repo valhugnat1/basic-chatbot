@@ -1,7 +1,6 @@
 import { createApp } from "vue";
 import App from "./App.vue";
-import router from "./router"; // Import the router
+import router from "./router";
+import "highlight.js/styles/github-dark.css";
 
-createApp(App)
-  .use(router) // Tell the app to use the router
-  .mount("#app");
+createApp(App).use(router).mount("#app");
