@@ -141,10 +141,20 @@ export default {
         ]);
         this.currentPrompt = prompt;
         this.editablePrompt = prompt;
-        // Sort versions by date (descending) using the 'created_at' property
-        this.versions = versions.sort((a, b) =>
-          b.created_at.localeCompare(a.created_at)
-        );
+
+        this.versions = versions.sort((a, b) => {
+          const dateA = a.created_at;
+          const dateB = b.created_at;
+
+          // Ensure both values are strings before comparing
+          if (typeof dateA === "string" && typeof dateB === "string") {
+            return dateB.localeCompare(dateA); // Sort descending
+          }
+          // Fallback for null, undefined, or non-string values
+          if (dateB) return 1;
+          if (dateA) return -1;
+          return 0;
+        });
       } catch (error) {
         console.error("Error fetching initial data:", error);
         alert(error.message);
@@ -166,14 +176,13 @@ export default {
         this.isLoading = false;
       }
     },
-    // Method now accepts the whole version object
     async viewVersion(version) {
       this.isLoading = true;
       try {
         this.selectedVersionContent = await getSpecificPromptVersion(
           version.id
         );
-        this.selectedVersionForModal = version; // Store the object
+        this.selectedVersionForModal = version;
         this.showVersionModal = true;
       } catch (error) {
         console.error("Error viewing version:", error);
@@ -182,12 +191,11 @@ export default {
         this.isLoading = false;
       }
     },
-    // Method now accepts the whole version object
     async rollbackToVersion(version) {
       if (
         !confirm(
           `Are you sure you want to restore the version from ${this.formatVersionName(
-            version.created_at // Use created_at for the confirmation message
+            version.created_at
           )}? The current prompt will be saved as a new version.`
         )
       ) {
@@ -195,7 +203,7 @@ export default {
       }
       this.isLoading = true;
       try {
-        await rollbackPrompt(version.id); // Use the id for the API call
+        await rollbackPrompt(version.id);
         alert("Restoration completed successfully!");
         await this.fetchData();
       } catch (error) {
@@ -206,7 +214,6 @@ export default {
       }
     },
   },
-  // Add a computed property for the modal title for cleaner template logic
   computed: {
     modalVersionName() {
       if (this.selectedVersionForModal) {
