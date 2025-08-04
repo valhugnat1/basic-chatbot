@@ -14,16 +14,6 @@ RUN npm install
 # Copie le reste des fichiers de l'application
 COPY . .
 
-# Définit les arguments qui seront passés lors de la construction pour les variables d'environnement
-ARG VUE_APP_BACKEND_BASE_URL
-ARG VUE_APP_CLIENT_API_KEY
-ARG VUE_APP_ADMIN_API_KEY
-
-# Assigne les arguments aux variables d'environnement de l'application
-ENV VUE_APP_BACKEND_BASE_URL=$VUE_APP_BACKEND_BASE_URL
-ENV VUE_APP_CLIENT_API_KEY=$VUE_APP_CLIENT_API_KEY
-ENV VUE_APP_ADMIN_API_KEY=$VUE_APP_ADMIN_API_KEY
-
 # Lance le script de build pour générer les fichiers statiques
 RUN npm run build
 
