@@ -98,3 +98,44 @@ export async function rollbackPrompt(versionName) {
   }
   return response.text();
 }
+
+/**
+ * Retrieves a paginated list of all conversations.
+ * @param {number} limit - The number of conversations to return.
+ * @param {number} skip - The number of conversations to skip.
+ * @returns {Promise<Array>} A list of conversation objects.
+ */
+export async function getAllConversations(limit = 100, skip = 0) {
+  const response = await fetch(
+    `${BASE_URL}/conversations?limit=${limit}&skip=${skip}`,
+    {
+      headers: getAuthHeaders(),
+    }
+  );
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.detail || "Failed to fetch conversations.");
+  }
+  return response.json();
+}
+
+/**
+ * Retrieves all messages for a single conversation.
+ * @param {string} conversationId - The UUID of the conversation.
+ * @returns {Promise<Array>} A list of message objects.
+ */
+export async function getConversationMessages(conversationId) {
+  const response = await fetch(
+    `${BASE_URL}/conversations/${conversationId}/messages`,
+    {
+      headers: getAuthHeaders(),
+    }
+  );
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(
+      errorData.detail || "Failed to fetch conversation messages."
+    );
+  }
+  return response.json();
+}

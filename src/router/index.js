@@ -1,12 +1,19 @@
 import { createRouter, createWebHistory } from "vue-router";
 import ChatView from "../views/ChatView.vue";
-import PromptSystemView from "../views/PromptSystemView.vue"; // Import the new view
+import PromptSystemView from "../views/PromptSystemView.vue";
+// Import the new view
+import ConversationsView from "../views/ConversationsView.vue";
 
 const routes = [
   {
     path: "/",
     name: "Chat",
     component: ChatView,
+  },
+  {
+    path: "/history",
+    name: "Conversations",
+    component: ConversationsView,
   },
   {
     path: "/prompts",

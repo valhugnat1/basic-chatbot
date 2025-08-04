@@ -5,6 +5,7 @@
         <h1 class="header-title">Ask AI</h1>
         <nav class="navigation">
           <router-link to="/" class="nav-link">Conversation</router-link>
+          <router-link to="/history" class="nav-link">History</router-link>
           <router-link to="/prompts" class="nav-link"
             >Prompt System</router-link
           >
