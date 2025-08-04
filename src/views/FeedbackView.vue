@@ -15,8 +15,8 @@
 
       <div v-else class="feedback-list">
         <div
-          v-for="(item, index) in processedFeedback"
-          :key="index"
+          v-for="item in processedFeedback"
+          :key="item.id"
           class="feedback-card"
         >
           <div class="card-header">
@@ -41,33 +41,100 @@
 
           <div class="context-section">
             <h3>Conversation Context</h3>
+
             <div class="message-context">
               <label>[User Prompt]</label>
-              <pre><code>{{ item.userPrompt }}</code></pre>
+              <pre
+                :class="{ truncated: !item.isUserPromptExpanded }"
+              ><code>{{ item.userPrompt }}</code></pre>
+              <div
+                v-if="isTruncatable(item.userPrompt)"
+                class="toggle-view-container"
+              >
+                <button
+                  v-if="!item.isUserPromptExpanded"
+                  class="btn-toggle"
+                  @click="item.isUserPromptExpanded = true"
+                >
+                  See more
+                </button>
+                <button
+                  v-else
+                  class="btn-toggle"
+                  @click="item.isUserPromptExpanded = false"
+                >
+                  Hide message
+                </button>
+              </div>
             </div>
+
             <div class="message-context">
               <label>[Assistant Response (Rated)]</label>
-              <pre><code>{{ item.assistantResponse }}</code></pre>
+              <pre
+                :class="{ truncated: !item.isAssistantResponseExpanded }"
+              ><code>{{ item.assistantResponse }}</code></pre>
+              <div
+                v-if="isTruncatable(item.assistantResponse)"
+                class="toggle-view-container"
+              >
+                <button
+                  v-if="!item.isAssistantResponseExpanded"
+                  class="btn-toggle"
+                  @click="item.isAssistantResponseExpanded = true"
+                >
+                  See more
+                </button>
+                <button
+                  v-else
+                  class="btn-toggle"
+                  @click="item.isAssistantResponseExpanded = false"
+                >
+                  Hide message
+                </button>
+              </div>
             </div>
+          </div>
+
+          <div class="card-actions">
+            <button
+              class="btn btn-secondary"
+              @click="viewFullConversation(item.raw)"
+            >
+              View Full Conversation
+            </button>
           </div>
         </div>
       </div>
     </main>
+
+    <FullConversationModal
+      v-if="selectedConversationMessages"
+      :messages="selectedConversationMessages"
+      @close="closeConversationModal"
+    />
   </div>
 </template>
 
 <script>
+// The <script> section from the previous answer remains exactly the same.
+// No changes are needed there.
 import AppHeader from "../components/AppHeader.vue";
+import FullConversationModal from "../components/FullConversationModal.vue";
 import { getAllFeedback } from "../services/promptApi";
 
 export default {
+  // ... (all script content is identical to the previous step)
   name: "FeedbackView",
-  components: { AppHeader },
+  components: {
+    AppHeader,
+    FullConversationModal,
+  },
   data() {
     return {
       processedFeedback: [],
       isLoading: false,
       error: null,
+      selectedConversationMessages: null,
     };
   },
   async created() {
@@ -93,7 +160,6 @@ export default {
         this.error = "Received invalid data format from the server.";
         return [];
       }
-
       return rawData
         .map((feedback) => {
           try {
@@ -105,6 +171,7 @@ export default {
             const previousMessage = messagesHistory[parentId] || {};
 
             return {
+              id: feedback.id,
               title: feedback.snapshot?.chat?.title || "N/A",
               date: new Date(feedback.created_at * 1000).toLocaleString(
                 "fr-FR"
@@ -115,13 +182,59 @@ export default {
                 previousMessage.content || "Previous message not found.",
               assistantResponse:
                 ratedMessage.content || "Rated message content not available.",
+              raw: feedback,
+              isUserPromptExpanded: false,
+              isAssistantResponseExpanded: false,
             };
           } catch (e) {
             console.warn("Could not process a feedback entry:", e, feedback);
-            return null; // This entry will be filtered out later
+            return null;
           }
         })
-        .filter((item) => item !== null); // Remove any entries that failed to parse
+        .filter((item) => item !== null);
+    },
+    reconstructConversation(messagesObject) {
+      if (!messagesObject || Object.keys(messagesObject).length === 0) {
+        return [];
+      }
+      const messagesMap = new Map(Object.entries(messagesObject));
+      let rootMessage = null;
+
+      for (const message of messagesMap.values()) {
+        if (message.parentId === null) {
+          rootMessage = message;
+          break;
+        }
+      }
+
+      if (!rootMessage)
+        return Object.values(messagesObject).sort(
+          (a, b) => a.timestamp - b.timestamp
+        );
+
+      const conversation = [];
+      let currentMessage = rootMessage;
+
+      while (currentMessage) {
+        conversation.push(currentMessage);
+        const childId = currentMessage.childrenIds?.[0];
+        currentMessage = childId ? messagesMap.get(childId) : null;
+      }
+
+      return conversation;
+    },
+    viewFullConversation(rawFeedbackItem) {
+      const messagesObject =
+        rawFeedbackItem.snapshot?.chat?.chat?.history?.messages;
+      this.selectedConversationMessages =
+        this.reconstructConversation(messagesObject);
+    },
+    closeConversationModal() {
+      this.selectedConversationMessages = null;
+    },
+    isTruncatable(text) {
+      if (!text) return false;
+      return text.split("\n").length > 3;
     },
   },
 };
@@ -253,5 +366,62 @@ export default {
 .message-context pre code {
   font-family: "Courier New", Courier, monospace;
   font-size: 0.95rem;
+}
+
+.card-actions {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #5a5a64;
+  text-align: right;
+}
+.btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.3s, opacity 0.3s;
+}
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.btn-secondary {
+  background-color: #5a5a64;
+  color: white;
+}
+.btn-secondary:hover:not(:disabled) {
+  background-color: #6a6a74;
+}
+
+.truncated {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* NEW: Container for the "See more" buttons */
+.toggle-view-container {
+  text-align: right;
+  margin-top: -10px; /* Adjust to pull the button closer to the text block */
+  margin-bottom: 10px;
+}
+
+/* NEW: Style for the small toggle button */
+.btn-toggle {
+  background: none;
+  border: none;
+  color: #19c37d; /* A nice highlight color from your theme */
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: bold;
+  padding: 4px;
+}
+
+.btn-toggle:hover {
+  text-decoration: underline;
 }
 </style>
