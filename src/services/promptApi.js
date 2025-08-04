@@ -139,3 +139,27 @@ export async function getConversationMessages(conversationId) {
   }
   return response.json();
 }
+
+const FEEDBACK_API_URL = process.env.VUE_APP_FEEDBACK_API_URL;
+const FEEDBACK_API_KEY = process.env.VUE_APP_FEEDBACK_API_KEY;
+
+/**
+ * Fetches all feedback data from the evaluations endpoint.
+ * @returns {Promise<Array>} A list of raw feedback objects.
+ */
+export async function getAllFeedback() {
+  const response = await fetch(
+    `${FEEDBACK_API_URL}/evaluations/feedbacks/all/export`,
+    {
+      headers: {
+        accept: "application/json",
+        Authorization: `Bearer ${FEEDBACK_API_KEY}`,
+      },
+    }
+  );
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || "Failed to fetch feedback data.");
+  }
+  return response.json();
+}

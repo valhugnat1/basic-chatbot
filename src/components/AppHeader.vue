@@ -9,6 +9,7 @@
           <router-link to="/prompts" class="nav-link"
             >Prompt System</router-link
           >
+          <router-link to="/feedback" class="nav-link">Feedback</router-link>
         </nav>
       </div>
       <div class="header-controls">

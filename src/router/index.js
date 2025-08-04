@@ -1,8 +1,8 @@
 import { createRouter, createWebHistory } from "vue-router";
 import ChatView from "../views/ChatView.vue";
 import PromptSystemView from "../views/PromptSystemView.vue";
-// Import the new view
 import ConversationsView from "../views/ConversationsView.vue";
+import FeedbackView from "../views/FeedbackView.vue";
 
 const routes = [
   {
@@ -19,6 +19,11 @@ const routes = [
     path: "/prompts",
     name: "PromptSystem",
     component: PromptSystemView,
+  },
+  {
+    path: "/feedback",
+    name: "Feedback",
+    component: FeedbackView,
   },
 ];
 
